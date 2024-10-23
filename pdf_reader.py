@@ -5,12 +5,9 @@ import json
 from dotenv import load_dotenv
 import os
 
-
 load_dotenv()  # 加载 .env 文件
 api_key = os.getenv('GOOGLE_API_KEY')  # 从 .env 文件获取 API 密钥
 url = 'https://vision.googleapis.com/v1/images:annotate?key={}'.format(api_key)
-
-
 
 def extract_images_from_pdf(pdf_path, start_page, end_page):
   doc = fitz.open(pdf_path)
