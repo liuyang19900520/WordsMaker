@@ -2,6 +2,8 @@ import time
 import requests
 import psycopg2
 
+
+
 conn = psycopg2.connect(
   host="172.16.33.33",  # PostgreSQL服务器地址，例如"localhost"
   database="words",  # 数据库名称

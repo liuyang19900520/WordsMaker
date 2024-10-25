@@ -152,41 +152,53 @@ def get_oulu_count():
 
   return total_data
 
-  def markStars(word, star):
-    # Cookie字符串
-    cookie_string = "_ga=GA1.1.794527447.1711241930; __utma=131758875.1355860809.1711238181.1711238181.1711238181.1; __utmz=131758875.1711238181.1.1.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); .AspNetCore.Session=CfDJ8K06SDLLKs1FpKlpqTRecpJyj0Vo%2Bslu51Lgn%2FpWVh4IJi1ozj%2BsGO1Farv5tP8FgomUdmSJDgJI2kxAVMcjHzAU6r%2FGQp5Jne2iidEkjDRayDukywfviXN9LmNND4cIzr0PZP6%2BwnuSSuiCpKC6Zn5BvuLfEOq%2BoKe3om%2F%2Fp9%2Fa; col_index=6; col_sort=desc; EudicWebSession=QYNeyJoYXNfb2xkX3Bhc3N3b3JkIjpmYWxzZSwidG9rZW4iOiJIMXlhaStBbVFFT2xjamdCbTBaQUIwaWhEcUk9IiwiZXhwaXJlaW4iOjEzMTQwMDAsInVzZXJpZCI6ImJkNWRjODJhLWJjMTYtMTFlZS1iYjNiLTAwNTA1Njg2OWFmNiIsInVzZXJuYW1lIjoi5YiY5rSLX3RWUzBJcTdaVEFGVCIsImNyZWF0aW9uX2RhdGUiOiIyMDI0LTAxLTI1VDIyOjQ3OjIyWiIsInJvbGVzIjpudWxsLCJvcGVuaWRfdHlwZSI6bnVsbCwib3BlbmlkX2Rlc2MiOm51bGwsInByb2ZpbGUiOnsibmlja25hbWUiOiLliJjmtIsiLCJlbWFpbCI6IiIsImdlbmRlciI6IuWlsyIsInBhc3N3b3JkIjpudWxsLCJ2b2NhYnVsYXJpZXMiOnsiZW4iOjYwNjl9fSwibGFzdF9wYXNzd29yZF9jaGFuZ2VkX2RhdGUiOiIxLzI2LzIwMjQgNjo0NzoyMiBBTSIsInJlZGlyZWN0X3VybCI6bnVsbH0%253d; _ga_6J9FB2R7F4=GS1.1.1727955588.6.1.1727955654.0.0.0"
 
-    # 解析cookies
-    cookies = parse_cookie_string(cookie_string)
+def markStars(word, star, cate):
+  # Cookie字符串
+  cookie_string = "_ga=GA1.1.794527447.1711241930; __utma=131758875.1355860809.1711238181.1711238181.1711238181.1; __utmz=131758875.1711238181.1.1.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); .AspNetCore.Session=CfDJ8K06SDLLKs1FpKlpqTRecpJyj0Vo%2Bslu51Lgn%2FpWVh4IJi1ozj%2BsGO1Farv5tP8FgomUdmSJDgJI2kxAVMcjHzAU6r%2FGQp5Jne2iidEkjDRayDukywfviXN9LmNND4cIzr0PZP6%2BwnuSSuiCpKC6Zn5BvuLfEOq%2BoKe3om%2F%2Fp9%2Fa; col_index=6; col_sort=desc; EudicWebSession=QYNeyJoYXNfb2xkX3Bhc3N3b3JkIjpmYWxzZSwidG9rZW4iOiJIMXlhaStBbVFFT2xjamdCbTBaQUIwaWhEcUk9IiwiZXhwaXJlaW4iOjEzMTQwMDAsInVzZXJpZCI6ImJkNWRjODJhLWJjMTYtMTFlZS1iYjNiLTAwNTA1Njg2OWFmNiIsInVzZXJuYW1lIjoi5YiY5rSLX3RWUzBJcTdaVEFGVCIsImNyZWF0aW9uX2RhdGUiOiIyMDI0LTAxLTI1VDIyOjQ3OjIyWiIsInJvbGVzIjpudWxsLCJvcGVuaWRfdHlwZSI6bnVsbCwib3BlbmlkX2Rlc2MiOm51bGwsInByb2ZpbGUiOnsibmlja25hbWUiOiLliJjmtIsiLCJlbWFpbCI6IiIsImdlbmRlciI6IuWlsyIsInBhc3N3b3JkIjpudWxsLCJ2b2NhYnVsYXJpZXMiOnsiZW4iOjYwNjl9fSwibGFzdF9wYXNzd29yZF9jaGFuZ2VkX2RhdGUiOiIxLzI2LzIwMjQgNjo0NzoyMiBBTSIsInJlZGlyZWN0X3VybCI6bnVsbH0%253d; _ga_6J9FB2R7F4=GS1.1.1727955588.6.1.1727955654.0.0.0"
 
-    # 请求头
-    headers = {
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
-    }
+  # 解析cookies
+  cookies = parse_cookie_string(cookie_string)
 
-    # 将参数word和star传入data字典
-    data = {
-      "oldcateid": 0,
-      "newrating": star,  # star参数
-      "uuid": word,  # word参数
-      "oper": 'changerating'
-    }
+  # 请求头
+  headers = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+  }
 
-    # URL
-    url = 'https://my.eudic.net/StudyList/Edit'
+  # 将参数word和star传入data字典
+  data = {
+    "oldcateid": -1,
+    "newrating": star,  # star参数
+    "uuid": word,  # word参数
+    "oper": 'changerating'
+  }
 
-    try:
-      # 发送POST请求
-      response = requests.post(url, headers=headers, cookies=cookies, data=data)
+  # 将参数word和star传入data字典
+  data2 = {
+    "oldcateid": -1,
+    "catename": cate,  # star参数
+    "uuid": word,  # word参数
+    "oper": 'moveword'
+  }
 
-      # 检查请求是否成功
-      response.raise_for_status()
+  # URL
+  url = 'https://my.eudic.net/StudyList/Edit'
 
-      # 返回JSON响应
-      resp = response.json()
-      return resp
+  try:
+    # 发送POST请求
+    response = requests.post(url, headers=headers, cookies=cookies, data=data)
+    response2 = requests.post(url, headers=headers, cookies=cookies, data=data2)
 
-    except requests.exceptions.RequestException as e:
-      print(f"Request failed: {e}")
-      return None
+    # 检查请求是否成功
+    response.raise_for_status()
+    response2.raise_for_status()
+
+    # 返回JSON响应
+    resp = response.json()
+    resp2 = response.json()
+    return resp
+
+  except requests.exceptions.RequestException as e:
+    print(f"Request failed: {e}")
+    return None
