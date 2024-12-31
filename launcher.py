@@ -1,10 +1,10 @@
 import psycopg2
 
-from crawler import fetch_and_insert_data, extract_all_words, get_oulu_count, markStars
+from crawler import markStars
 
-#fetch_and_insert_data()
+# fetch_and_insert_data()
 
-## 连接数据库
+## 连接数据库Ò
 conn = psycopg2.connect(
   host="172.16.33.33",
   database="words",
@@ -28,7 +28,9 @@ for index, row in enumerate(words):
     "1": "0",
     "2": "133557195427064351",
     "3": "1721222268",
-    "4": "1726467371"
+    "4": "1726467371",
+    "5": "133801326811757890",
+    "6": "133801326642859934",
   }
 
   # 对 freq 字段进行修改，例如增加 1
@@ -36,8 +38,8 @@ for index, row in enumerate(words):
   freq = row[-1]
   cate = category_dict[row[4]]
   rate = row[2]
-  if (row[4] == '1'): cate = '1726467371'
-  modified_freq = 1;
+  modified_freq = 1
+  modified_cate = cate
 
   if freq < 5: modified_freq = 1;
   if 5 <= freq < 10: modified_freq = 2;
@@ -45,7 +47,13 @@ for index, row in enumerate(words):
   if 15 <= freq < 20: modified_freq = 4;
   if freq >= 20: modified_freq = 5;
 
-  if rate != modified_freq:
+  trimmed = word.strip()
+  # 判断去掉前后空格后的字符串中是否还有空格
+  if ' ' in trimmed:
+    modified_cate = category_dict[6]
+    if cate == '133557195427064351':
+      modified_cate = category_dict[5]
+  if rate != modified_freq or cate != modified_cate:
     print("设置rating开始====", word, index)
     markStars(word, modified_freq, cate)
 

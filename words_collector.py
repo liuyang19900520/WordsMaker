@@ -85,11 +85,8 @@ def tokenize(text):
   process_file_and_update_db(formatted_time + 'Import.txt')
   print("频率DB创建成功")
 
-  pgDBList = extract_all_words()
-  ouluCount = get_oulu_count();
 
-  if (len(pgDBList) != ouluCount):
-    fetch_and_insert_data()
+  fetch_and_insert_data()
 
   ouluWordList = extract_all_words()
   abc = list(string.ascii_lowercase)
