@@ -12,3 +12,8 @@ output "dynamodb_table" {
   description = "DynamoDB table name"
   value       = aws_dynamodb_table.words.name
 }
+
+output "github_actions_role_arn" {
+  description = "IAM Role ARN for GitHub Actions (set as GHA_ROLE_ARN secret in GitHub)"
+  value       = aws_iam_role.github_actions.arn
+}
