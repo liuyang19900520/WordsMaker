@@ -3,23 +3,23 @@
 Two handlers:
 
 1. handler(event, context)
-   - S3 event: PDF uploaded → full pipeline (OCR → NLP → DynamoDB → Eudic import)
-   - HTTP (API Gateway): POST {"pdf_key": "...", "pages": "1-15"}
+   - HTTP (Function URL): POST multipart/form-data
+       fields: file (PDF), start_page, end_page, eudic_cookie
 
 2. sync_handler(event, context)
    - EventBridge scheduled rule (daily cron) → incremental Eudic → DynamoDB sync
    - Also callable manually via Lambda console or CLI
 
 Environment variables:
-  GOOGLE_API_KEY, EUDIC_COOKIE, DYNAMODB_TABLE_NAME, AWS_REGION, S3_BUCKET
+  GOOGLE_API_KEY, DYNAMODB_TABLE_NAME, AWS_REGION
   See .env.example for the full list.
 """
+import base64
+import email
 import json
 import logging
-import os
 import tempfile
-
-import boto3
+from email.policy import HTTP
 
 from words_maker.config import load_config
 from words_maker.eudic.client import build_session
@@ -30,46 +30,100 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def handler(event: dict, context: object) -> dict:
-    """PDF pipeline handler (S3 trigger or HTTP)."""
-    config = load_config()
-    start_page: int = config.pdf_start_page
-    end_page: int = config.pdf_end_page
+def _parse_multipart(event: dict) -> dict:
+    """Parse multipart/form-data from a Lambda Function URL event.
 
-    if "Records" in event:
-        # S3 trigger
-        record = event["Records"][0]
-        bucket = record["s3"]["bucket"]["name"]
-        key = record["s3"]["object"]["key"]
-        logger.info("S3 trigger: s3://%s/%s", bucket, key)
-        s3 = boto3.client("s3", region_name=config.aws_region)
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            s3.download_fileobj(bucket, key, tmp)
-            pdf_local_path = tmp.name
+    Returns a dict with keys: file_bytes, start_page, end_page, eudic_cookie.
+    """
+    content_type = ""
+    for k, v in (event.get("headers") or {}).items():
+        if k.lower() == "content-type":
+            content_type = v
+            break
 
+    body = event.get("body", "")
+    if event.get("isBase64Encoded"):
+        body_bytes = base64.b64decode(body)
     else:
-        # HTTP / direct invocation
-        body = event.get("body", "{}")
-        if isinstance(body, str):
-            body = json.loads(body)
-        pdf_key = body.get("pdf_key")
-        if not pdf_key:
-            return {"statusCode": 400, "body": json.dumps({"error": "pdf_key is required"})}
-        pages_str = body.get("pages", f"{start_page}-{end_page}")
-        parts = pages_str.split("-")
-        start_page = int(parts[0])
-        end_page = int(parts[1]) if len(parts) > 1 else int(parts[0])
-        bucket = os.environ.get("S3_BUCKET", "")
-        if not bucket:
-            return {"statusCode": 500, "body": json.dumps({"error": "S3_BUCKET not configured"})}
-        s3 = boto3.client("s3", region_name=config.aws_region)
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            s3.download_fileobj(bucket, pdf_key, tmp)
-            pdf_local_path = tmp.name
+        body_bytes = body.encode("utf-8") if isinstance(body, str) else body
 
-    result = run(config, pdf_local_path, start_page, end_page)
+    # Use email library to parse multipart
+    raw = f"Content-Type: {content_type}\r\n\r\n".encode() + body_bytes
+    msg = email.message_from_bytes(raw, policy=HTTP)
+
+    fields: dict = {}
+    for part in msg.walk():
+        cd = part.get("Content-Disposition", "")
+        if not cd:
+            continue
+        name = None
+        for segment in cd.split(";"):
+            segment = segment.strip()
+            if segment.startswith('name='):
+                name = segment[5:].strip('"')
+        if name is None:
+            continue
+        payload = part.get_payload(decode=True)
+        if name == "file":
+            fields["file_bytes"] = payload
+        else:
+            fields[name] = payload.decode("utf-8") if payload else ""
+
+    return fields
+
+
+def handler(event: dict, context: object) -> dict:
+    """PDF pipeline handler — accepts multipart/form-data via Function URL."""
+    logger.info("Event keys: %s", list(event.keys()))
+
+    try:
+        fields = _parse_multipart(event)
+    except Exception as exc:
+        logger.exception("Failed to parse multipart body")
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": f"Failed to parse request: {exc}"}),
+        }
+
+    file_bytes = fields.get("file_bytes")
+    if not file_bytes:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": "Missing PDF file"}),
+        }
+
+    eudic_cookie = fields.get("eudic_cookie", "")
+    if not eudic_cookie:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": "Missing eudic_cookie"}),
+        }
+
+    config = load_config(eudic_cookie=eudic_cookie)
+
+    try:
+        start_page = int(fields.get("start_page", config.pdf_start_page))
+        end_page = int(fields.get("end_page", config.pdf_end_page))
+    except ValueError:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": "start_page / end_page must be integers"}),
+        }
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(file_bytes)
+        pdf_path = tmp.name
+
+    logger.info("Processing %d bytes, pages %d-%d", len(file_bytes), start_page, end_page)
+    result = run(config, pdf_path, start_page, end_page)
+
     return {
         "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
         "body": json.dumps({
             "pages_processed": result.pages_processed,
             "words_extracted": result.words_extracted,
@@ -101,6 +155,7 @@ def sync_handler(event: dict, context: object) -> dict:
     )
     return {
         "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
         "body": json.dumps({
             "new_words": result.new_words,
             "pages_fetched": result.pages_fetched,
