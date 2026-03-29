@@ -1,6 +1,6 @@
 output "lambda_function_url" {
-  description = "Lambda Function URL (set as LAMBDA_FUNCTION_URL in Amplify)"
-  value       = aws_lambda_function_url.pipeline.function_url
+  description = "API Gateway endpoint (set as LAMBDA_FUNCTION_URL in Amplify)"
+  value       = aws_apigatewayv2_stage.pipeline.invoke_url
 }
 
 output "amplify_app_url" {

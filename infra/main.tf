@@ -5,6 +5,16 @@ locals {
   ecr_repo   = "${local.account_id}.dkr.ecr.ap-northeast-1.amazonaws.com/words-maker"
 }
 
+# ── Secrets Manager ──────────────────────────────────────────────────────────
+
+data "aws_secretsmanager_secret_version" "google_api_key" {
+  secret_id = "words-maker/google-api-key"
+}
+
+data "aws_secretsmanager_secret_version" "github_token" {
+  secret_id = "words-maker/github-token"
+}
+
 # ── DynamoDB ────────────────────────────────────────────────────────────────
 
 resource "aws_dynamodb_table" "words" {
@@ -101,7 +111,7 @@ resource "aws_lambda_function" "pipeline" {
 
   environment {
     variables = {
-      GOOGLE_API_KEY            = var.google_api_key
+      GOOGLE_API_KEY            = data.aws_secretsmanager_secret_version.google_api_key.secret_string
       DYNAMODB_TABLE_NAME       = aws_dynamodb_table.words.name
       EUDIC_DEFAULT_CATEGORY_ID = "0"
       PDF_START_PAGE            = "1"
@@ -112,15 +122,44 @@ resource "aws_lambda_function" "pipeline" {
   depends_on = [aws_ecr_repository.lambda]
 }
 
-resource "aws_lambda_function_url" "pipeline" {
-  function_name      = aws_lambda_function.pipeline.function_name
-  authorization_type = "NONE"
+# ── API Gateway HTTP API ─────────────────────────────────────────────────────
 
-  cors {
+resource "aws_apigatewayv2_api" "pipeline" {
+  name          = "words-maker-pipeline"
+  protocol_type = "HTTP"
+
+  cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["POST"]
+    allow_methods = ["POST", "OPTIONS"]
     allow_headers = ["content-type"]
   }
+}
+
+resource "aws_apigatewayv2_integration" "pipeline" {
+  api_id                 = aws_apigatewayv2_api.pipeline.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.pipeline.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "pipeline" {
+  api_id    = aws_apigatewayv2_api.pipeline.id
+  route_key = "POST /"
+  target    = "integrations/${aws_apigatewayv2_integration.pipeline.id}"
+}
+
+resource "aws_apigatewayv2_stage" "pipeline" {
+  api_id      = aws_apigatewayv2_api.pipeline.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_lambda_permission" "apigw" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.pipeline.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.pipeline.execution_arn}/*/*"
 }
 
 # ── Amplify ──────────────────────────────────────────────────────────────────
@@ -128,32 +167,33 @@ resource "aws_lambda_function_url" "pipeline" {
 resource "aws_amplify_app" "frontend" {
   name         = "words-maker"
   repository   = var.github_repo
-  access_token = var.github_token
+  access_token = data.aws_secretsmanager_secret_version.github_token.secret_string
   platform     = "WEB_COMPUTE"
 
   build_spec = <<-YAML
     version: 1
     applications:
-      - frontend:
+      - appRoot: frontend
+        frontend:
           phases:
             preBuild:
               commands:
-                - cd frontend && npm ci
+                - npm ci
             build:
               commands:
                 - npm run build
           artifacts:
-            baseDirectory: frontend/.next
+            baseDirectory: .next
             files:
               - '**/*'
           cache:
             paths:
-              - frontend/node_modules/**/*
-        appRoot: frontend
+              - node_modules/**/*
   YAML
 
   environment_variables = {
-    LAMBDA_FUNCTION_URL = aws_lambda_function_url.pipeline.function_url
+    LAMBDA_FUNCTION_URL          = aws_apigatewayv2_stage.pipeline.invoke_url
+    AMPLIFY_MONOREPO_APP_ROOT    = "frontend"
   }
 }
 

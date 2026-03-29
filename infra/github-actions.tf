@@ -57,8 +57,8 @@ resource "aws_iam_role_policy" "github_actions" {
         Resource = aws_ecr_repository.lambda.arn
       },
       {
-        Effect   = "Allow"
-        Action   = ["lambda:UpdateFunctionCode"]
+        Effect = "Allow"
+        Action = ["lambda:UpdateFunctionCode"]
         Resource = aws_lambda_function.pipeline.arn
       },
     ]
